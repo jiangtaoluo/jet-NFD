@@ -203,6 +203,14 @@ public:
   signal::Signal<Forwarder, pit::Entry> beforeExpirePendingInterest;
 
 PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
+  ////////////////////////////////
+  /** \brief incoming EData pipeline
+   * Modified by Jiangtao Luo. 12 Feb 2020
+   *  Jzq add 12/4/2019
+   */
+  VIRTUAL_WITH_TESTS void
+  onDataEmergency(Face& inFace, const Data& data);
+  ///////////////////////////////
   /** \brief incoming Interest pipeline
    */
   VIRTUAL_WITH_TESTS void

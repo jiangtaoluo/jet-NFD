@@ -83,6 +83,28 @@ Forwarder::Forwarder()
 
 Forwarder::~Forwarder() = default;
 
+  ////////////////////////////////
+  // Jiangtao Luo. 12 Feb
+void Forwarder::onDataEmergency(Face& inFace, const Data& data)
+{
+  NFD_LOG_DEBUG("onDataEmergency: " << data.getName() << " received.");
+
+  // foreach pending downstream, all in m_faceTable
+  // FaceMap = std::map< FaceId, shared_ptr< Face > >
+  //std::map<FaceId, shared_ptr<Face> >::const_iterator iter;
+  FaceTable::const_iterator iter;
+  for (iter = m_faceTable.begin(); iter != m_faceTable.end(); ++iter) {
+    if ( iter->getId() != inFace.getId() ||
+        iter->getLinkType() == ndn::nfd::LINK_TYPE_AD_HOC){
+      this->onOutgoingData(data, *iter);
+    }
+    continue;
+  }
+  
+}
+    
+  ////////////////////////////////
+
 void
 Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
 {
@@ -288,6 +310,10 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
 {
   // receive Data
   NFD_LOG_DEBUG("onIncomingData face=" << inFace.getId() << " data=" << data.getName());
+
+  // Jiangtao Luo. 12 Feb 2020
+  NFD_LOG_DEBUG("Emergency Ind = " << data.getEmergencyInd());
+    
   data.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
   ++m_counters.nInData;
 
@@ -300,6 +326,20 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     // (drop)
     return;
   }
+
+  ////////////////////////////////
+  /**
+   * Check if the Data is emergency: if yes, goto onDataEmergency
+   * Modified by Jiangtao Luo. 12 Feb 2020
+   * JZQ modify 4/12/2019
+   */
+  if(data.getEmergencyInd() == "Emergency") {
+    // goto emergency Data pipeline
+    this->onDataEmergency(inFace, data);
+    return;
+   }
+  ////////////////////////////////
+  
 
   // PIT match
   pit::DataMatchResult pitMatches = m_pit.findAllDataMatches(data);
@@ -393,6 +433,8 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
 void
 Forwarder::onDataUnsolicited(Face& inFace, const Data& data)
 {
+  // For test. Jiangtao Luo. 12 Feb 2020
+  NFD_LOG_INFO("Forwarder: Entering onDataUnsolicited, data = " << data.getName());
   // accept to cache?
   fw::UnsolicitedDataDecision decision = m_unsolicitedDataPolicy->decide(inFace, data);
   if (decision == fw::UnsolicitedDataDecision::CACHE) {
