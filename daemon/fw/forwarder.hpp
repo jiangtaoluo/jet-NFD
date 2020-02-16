@@ -298,6 +298,12 @@ PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   }
 
 private:
+  ////////////////////////////////
+  // Nonce List for Data.
+  // Jiangtao Luo. 13 Feb 2020
+  DeadNonceList     m_dataNonceList;
+  ////////////////////////////////
+  
   ForwarderCounters m_counters;
 
   FaceTable m_faceTable;

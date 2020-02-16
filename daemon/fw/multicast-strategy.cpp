@@ -66,6 +66,9 @@ void
 MulticastStrategy::afterReceiveInterest(const Face& inFace, const Interest& interest,
                                         const shared_ptr<pit::Entry>& pitEntry)
 {
+  // Jiangtao Luo. 14 Feb 2020
+  NFD_LOG_DEBUG("Multicast slected for :"<<interest.getName());
+  
   const fib::Entry& fibEntry = this->lookupFib(*pitEntry);
   const fib::NextHopList& nexthops = fibEntry.getNextHops();
 

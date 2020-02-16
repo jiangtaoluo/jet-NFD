@@ -29,6 +29,8 @@
 namespace nfd {
 namespace fw {
 
+  NFD_LOG_INIT(BestRouteStrategy);  // Jiangtao Luo. 15 Feb 2020
+
 BestRouteStrategyBase::BestRouteStrategyBase(Forwarder& forwarder)
   : Strategy(forwarder)
 {
@@ -38,6 +40,9 @@ void
 BestRouteStrategyBase::afterReceiveInterest(const Face& inFace, const Interest& interest,
                                             const shared_ptr<pit::Entry>& pitEntry)
 {
+  // Jiangtao Luo. 15 Feb
+  NFD_LOG_DEBUG("BestStrategy for Interest: " << interest.getName());
+  
   if (hasPendingOutRecords(*pitEntry)) {
     // not a new Interest, don't forward
     return;

@@ -127,6 +127,9 @@ void
 BestRouteStrategy2::afterReceiveInterest(const Face& inFace, const Interest& interest,
                                          const shared_ptr<pit::Entry>& pitEntry)
 {
+  // Jiangtao Luo. 15 Feb 2020
+  NFD_LOG_DEBUG("BestRouteStrategy2 for Interest: " << interest.getName());
+  
   RetxSuppressionResult suppression = m_retxSuppression.decidePerPitEntry(*pitEntry);
   if (suppression == RetxSuppressionResult::SUPPRESS) {
     NFD_LOG_DEBUG(interest << " from=" << inFace.getId()

@@ -87,18 +87,38 @@ Forwarder::~Forwarder() = default;
   // Jiangtao Luo. 12 Feb
 void Forwarder::onDataEmergency(Face& inFace, const Data& data)
 {
-  NFD_LOG_DEBUG("onDataEmergency: " << data.getName() << " received.");
+  NFD_LOG_DEBUG("onDataEmergency: " << data.getName() <<
+                " Nonce: " << data.getNonce());
 
+  // detect duplicate Nonce
+  bool bDuplicate = m_dataNonceList.has(data.getName(),
+                                        data.getNonce());
+  NFD_LOG_DEBUG("Data Nonce List size: "<< m_dataNonceList.size());
+  if(bDuplicate) {
+    NFD_LOG_DEBUG("Duplicate Data Nonce found: "<< data.getNonce()
+                  << ", Dropped!");
+    return;
+  }
+  else {
+    m_dataNonceList.add(data.getName(), data.getNonce());
+  }
+    // 
+  
   // foreach pending downstream, all in m_faceTable
   // FaceMap = std::map< FaceId, shared_ptr< Face > >
   //std::map<FaceId, shared_ptr<Face> >::const_iterator iter;
   FaceTable::const_iterator iter;
   for (iter = m_faceTable.begin(); iter != m_faceTable.end(); ++iter) {
-    if ( iter->getId() != inFace.getId() ||
-        iter->getLinkType() == ndn::nfd::LINK_TYPE_AD_HOC){
-      this->onOutgoingData(data, *iter);
-    }
-    continue;
+    NFD_LOG_DEBUG("LinkType: " << iter->getLinkType());
+
+    // All output
+    this->onOutgoingData(data, *iter);
+    
+    // if ( iter->getId() != inFace.getId() ||
+    //     iter->getLinkType() == ndn::nfd::LINK_TYPE_AD_HOC){
+    //   this->onOutgoingData(data, *iter);
+    // }
+    // continue;
   }
   
 }
@@ -142,6 +162,9 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
 
   // PIT insert
   shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
+
+  // Jiangtao LUo. 14 Feb 2020
+  NFD_LOG_DEBUG("PIT inserted for : " << pitEntry->getName());
 
   // detect duplicate Nonce in PIT entry
   int dnw = fw::findDuplicateNonce(*pitEntry, interest.getNonce(), inFace);
@@ -236,6 +259,12 @@ Forwarder::onContentStoreMiss(const Face& inFace, const shared_ptr<pit::Entry>& 
   }
 
   // dispatch to strategy: after incoming Interest
+  // Jiangtao Luo. 14 Feb 2020
+  NFD_LOG_DEBUG("StrategyChoice size: " << this->getStrategyChoice().size());
+  NFD_LOG_DEBUG("dispatch to strategy: "<< this->getStrategyChoice().get(interest.getName()).first);
+  NFD_LOG_DEBUG("Find effective strategy: "<<
+                this->getStrategyChoice().findEffectiveStrategy(interest.getName()).getInstanceName());
+    
   this->dispatchToStrategy(*pitEntry,
     [&] (fw::Strategy& strategy) { strategy.afterReceiveInterest(inFace, interest, pitEntry); });
 }

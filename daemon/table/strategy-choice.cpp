@@ -197,6 +197,10 @@ StrategyChoice::findEffectiveStrategy(const Name& prefix) const
 Strategy&
 StrategyChoice::findEffectiveStrategy(const pit::Entry& pitEntry) const
 {
+  // Jiangtao Luo. 15 Feb 2020
+  NFD_LOG_DEBUG("StrategyChoice::findEffectiveStrategy for pitEntry: "<<
+                pitEntry.getName());
+  
   return this->findEffectiveStrategyImpl(pitEntry);
 }
 
