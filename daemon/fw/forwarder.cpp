@@ -87,7 +87,7 @@ Forwarder::~Forwarder() = default;
   // Jiangtao Luo. 12 Feb
 void Forwarder::onDataEmergency(Face& inFace, const Data& data)
 {
-  NFD_LOG_DEBUG("onDataEmergency: " << data.getName() <<
+  NFD_LOG_INFO("onDataEmergency: " << data.getName() <<
                 " Nonce: " << data.getNonce());
 
   // detect duplicate Nonce
@@ -258,13 +258,6 @@ Forwarder::onContentStoreMiss(const Face& inFace, const shared_ptr<pit::Entry>& 
     return;
   }
 
-  // dispatch to strategy: after incoming Interest
-  // Jiangtao Luo. 14 Feb 2020
-  NFD_LOG_DEBUG("StrategyChoice size: " << this->getStrategyChoice().size());
-  NFD_LOG_DEBUG("dispatch to strategy: "<< this->getStrategyChoice().get(interest.getName()).first);
-  NFD_LOG_DEBUG("Find effective strategy: "<<
-                this->getStrategyChoice().findEffectiveStrategy(interest.getName()).getInstanceName());
-    
   this->dispatchToStrategy(*pitEntry,
     [&] (fw::Strategy& strategy) { strategy.afterReceiveInterest(inFace, interest, pitEntry); });
 }
