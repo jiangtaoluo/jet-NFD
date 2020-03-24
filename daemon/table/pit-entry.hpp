@@ -232,6 +232,31 @@ public:
    */
   time::milliseconds dataFreshnessPeriod;
 
+////////////////////////////////
+public:  // For random-wait strategy. Jiangtao Luo added. 21 Mar 2020
+  // This timer is used fot deferring forwarding randomly
+  scheduler::EventId relayTimerForInterest;
+
+  // Schedule sending at 
+  time::steady_clock::TimePoint expireTimeToRelayInterest;
+
+  // This time is used to re-transmit no-relayed or satisfied interest
+  scheduler::EventId retxTimerForInterest;
+
+  // schedule re-transmissioin at
+  time::steady_clock::TimePoint expireTimeToRetxInterest;
+
+  bool
+  isExpiredToSendInterest();  // if expired to delay transmit
+
+  bool isExpiredRtxInterest(); // if expired to retransmit
+
+  // re-transmission counts;
+  uint32_t retxCount;
+
+////////////////////////////////
+  
+
 private:
   shared_ptr<const Interest> m_interest;
   InRecordCollection m_inRecords;

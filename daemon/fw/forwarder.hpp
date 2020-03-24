@@ -201,8 +201,29 @@ public:
    *  \sa Strategy::beforeExpirePendingInterest
    */
   signal::Signal<Forwarder, pit::Entry> beforeExpirePendingInterest;
+////////////////////////////////
+public: // For randomWait test
+    // Set a new random wait timer on a PIT entry
+  // Jiangtao Luo. 21 Mar 2020
+  void setRelayTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+                              time::microseconds delay,
+                          Face& outFace, const Interest& interest);
+
+  // Set re-transmission for relayed Interest
+  void
+  setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+                              time::milliseconds delay,
+                                      Face& outFace, const Interest& interest);
+////////////////////////////////  
 
 PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
+  ////////////////////////////////
+  // Process loop interests for randomWaitStrategy
+  // Jiangtao Luo. 18 Mar 2020
+  VIRTUAL_WITH_TESTS void
+  onRandomWaitLoopInterest(Face& inFace, const Interest& interest);
+  ////////////////////////////////
+  
   ////////////////////////////////
   /** \brief incoming EData pipeline
    * Modified by Jiangtao Luo. 12 Feb 2020
@@ -275,6 +296,9 @@ PROTECTED_WITH_TESTS_ELSE_PRIVATE:
    */
   void
   setExpiryTimer(const shared_ptr<pit::Entry>& pitEntry, time::milliseconds duration);
+
+
+
 
   /** \brief insert Nonce to Dead Nonce List if necessary
    *  \param upstream if null, insert Nonces from all out-records;

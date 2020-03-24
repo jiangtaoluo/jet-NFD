@@ -231,6 +231,13 @@ public: // triggers
   virtual void
   onDroppedInterest(const Face& outFace, const Interest& interest);
 
+  ////////////////////////////////
+  // trigger after Interest sent
+  // Jiangtao Luo. 22 Mar 2020
+  virtual void
+  afterSendInterest(const shared_ptr<pit::Entry>& pitEntry,  Face& outFace, const Interest& interest);
+  
+
 protected: // actions
   /** \brief send Interest to outFace
    *  \param pitEntry PIT entry
@@ -311,6 +318,17 @@ protected: // actions
 protected: // accessors
   /** \brief performs a FIB lookup, considering Link object if present
    */
+
+  ////////////////////////////////
+  // Get forwarder
+  // Jiangtao Luo. 20 Mar 2020
+  Forwarder&
+  getForwarder()
+  {
+    return m_forwarder;
+  }
+  ////////////////////////////////
+  
   const fib::Entry&
   lookupFib(const pit::Entry& pitEntry) const;
 

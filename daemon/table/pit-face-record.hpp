@@ -63,12 +63,34 @@ public:
   void
   update(const Interest& interest);
 
+  ////////////////////////////////
+  // Get the largest hop count
+  // Jiangtao Luo. 18 Mar 2020
+  uint8_t
+  getLastHopCount() const;
+  ////////////////////////////////
+
 private:
   Face& m_face;
   uint32_t m_lastNonce;
   time::steady_clock::TimePoint m_lastRenewed;
   time::steady_clock::TimePoint m_expiry;
+
+  ////////////////////////////////
+  // the largest hop count
+  // Jiangtao Luo. 18 Mar 2020
+  uint8_t m_lastHopCount;  // the largest in history
+  ////////////////////////////////
 };
+
+////////////////////////////////
+// Jiangtao Luo. 18 Mar 2020
+inline uint8_t
+FaceRecord::getLastHopCount() const
+{
+  return m_lastHopCount;
+}
+////////////////////////////////
 
 inline Face&
 FaceRecord::getFace() const

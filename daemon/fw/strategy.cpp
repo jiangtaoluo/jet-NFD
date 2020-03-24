@@ -287,5 +287,17 @@ Strategy::lookupFib(const pit::Entry& pitEntry) const
   return *fibEntry; // only occurs if no delegation finds a FIB nexthop
 }
 
+////////////////////////////////
+// Jiangtao Luo. 22 Mar 2020
+void
+Strategy::afterSendInterest(const shared_ptr<pit::Entry>& pitEntry,
+                             Face& outFace, const Interest& interest)
+
+{
+  NFD_LOG_DEBUG("After sending an Interest on pitEntry=" << pitEntry->getName() <<
+                " outFace=" << outFace.getId() << " interest =" << interest.getName());
+}
+////////////////////////////////
+
 } // namespace fw
 } // namespace nfd

@@ -39,6 +39,11 @@ FaceRecord::FaceRecord(Face& face)
 void
 FaceRecord::update(const Interest& interest)
 {
+  ////////////////////////////////
+  // Jiangtao Luo. 18 Mar 2020
+  m_lastHopCount = (interest.getHopCount() > m_lastHopCount) ?
+    interest.getHopCount() : m_lastHopCount;
+  ////////////////////////////////
   m_lastNonce = interest.getNonce();
   m_lastRenewed = time::steady_clock::now();
 

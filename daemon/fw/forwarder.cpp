@@ -83,6 +83,30 @@ Forwarder::Forwarder()
 
 Forwarder::~Forwarder() = default;
 
+
+////////////////////////////////
+// Jiangtao Luo. 18 Mar 2020
+void Forwarder::onRandomWaitLoopInterest(Face& inFace, const Interest& interest)
+{
+  NFD_LOG_DEBUG("Entering onRandomWaitLoopInterest: ...");
+  // Cancel the scheduled transmission
+   // Jiangtao Luo. 21 Mar 2020
+  shared_ptr<pit::Entry> pitEntry = m_pit.find(interest);
+
+  if (!pitEntry->isExpiredToSendInterest()) {
+    NFD_LOG_DEBUG("Cancel the scheduled Interest transmission)");
+    scheduler::cancel(pitEntry->relayTimerForInterest);
+  }
+  else if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
+    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!)");
+
+    pitEntry->retxCount = 0; // reset re-tx count
+    scheduler::cancel(pitEntry->retxTimerForInterest);
+  }
+  else
+    NFD_LOG_DEBUG("Drop no sent Interest!");
+}
+
   ////////////////////////////////
   // Jiangtao Luo. 12 Feb
 void Forwarder::onDataEmergency(Face& inFace, const Data& data)
@@ -112,13 +136,13 @@ void Forwarder::onDataEmergency(Face& inFace, const Data& data)
     NFD_LOG_DEBUG("LinkType: " << iter->getLinkType());
 
     // All output
-    this->onOutgoingData(data, *iter);
+    // this->onOutgoingData(data, *iter);
     
-    // if ( iter->getId() != inFace.getId() ||
-    //     iter->getLinkType() == ndn::nfd::LINK_TYPE_AD_HOC){
-    //   this->onOutgoingData(data, *iter);
-    // }
-    // continue;
+    if ( iter->getId() != inFace.getId() ||
+         iter->getLinkType() == ndn::nfd::LINK_TYPE_AD_HOC){
+       this->onOutgoingData(data, *iter);
+     }
+     continue;
   }
   
 }
@@ -130,7 +154,7 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
 {
   // receive Interest
   NFD_LOG_DEBUG("onIncomingInterest face=" << inFace.getId() <<
-                " interest=" << interest.getName());
+                " interest=" << interest.getName() << "nonce=" << interest.getNonce()); // add nonce. Jiangtao Luo
   interest.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
   ++m_counters.nInInterests;
 
@@ -197,6 +221,20 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
     }
   }
   else {
+    ////////////////////////////////
+    // has in-records but not loop: different nonce
+    // Jiangtao Luo. 23 Mar 2020
+    if (!pitEntry->isExpiredToSendInterest()) {
+      NFD_LOG_INFO("Cancel the scheduled Interest transmission (old nonce)!");
+      scheduler::cancel(pitEntry->relayTimerForInterest);
+    }
+   if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
+      NFD_LOG_INFO("Cancel the scheduled Interest re-transmission (old nonce)!)");
+      
+      pitEntry->retxCount = 0; // reset re-tx count
+      scheduler::cancel(pitEntry->retxTimerForInterest);
+    }
+   ////////////////////////////////
     this->onContentStoreMiss(inFace, pitEntry, interest);
   }
 }
@@ -206,10 +244,22 @@ Forwarder::onInterestLoop(Face& inFace, const Interest& interest)
 {
   // if multi-access or ad hoc face, drop
   if (inFace.getLinkType() != ndn::nfd::LINK_TYPE_POINT_TO_POINT) {
+    // NFD_LOG_DEBUG("onInterestLoop face=" << inFace.getId() <<
+    //               " interest=" << interest.getName() <<
+    //               " drop");
     NFD_LOG_DEBUG("onInterestLoop face=" << inFace.getId() <<
-                  " interest=" << interest.getName() <<
-                  " drop");
-    return;
+                  " interest=" << interest.getName());
+    ////////////////////////////////
+    // reditect for randomWaitStrategy
+    // Jiangtao Luo. 18 Mar 2020
+    //fw::Strategy s = m_strategyChoice.findEffectiveStrategy(interest.getName());
+    std::string strName = m_strategyChoice.findEffectiveStrategy(interest.getName()).getInstanceName().toUri();
+
+    if (strName.find("random-wait") != std::string::npos) {
+      // randomWaitStrategy
+      return this->onRandomWaitLoopInterest(inFace, interest);
+    }
+    
   }
 
   NFD_LOG_DEBUG("onInterestLoop face=" << inFace.getId() <<
@@ -291,7 +341,7 @@ void
 Forwarder::onOutgoingInterest(const shared_ptr<pit::Entry>& pitEntry, Face& outFace, const Interest& interest)
 {
   NFD_LOG_DEBUG("onOutgoingInterest face=" << outFace.getId() <<
-                " interest=" << pitEntry->getName());
+                " interest=" << pitEntry->getName() << " Nonce= "<< interest.getNonce()); // add nonce. Jiangtao Luo
 
   // insert out-record
   pitEntry->insertOrUpdateOutRecord(outFace, interest);
@@ -299,13 +349,28 @@ Forwarder::onOutgoingInterest(const shared_ptr<pit::Entry>& pitEntry, Face& outF
   // send Interest
   outFace.sendInterest(interest);
   ++m_counters.nOutInterests;
+
+  // if random wait, start re-tx
+  // Jiangtao Luo. 22 March
+
+  std::string strName = m_strategyChoice.findEffectiveStrategy(interest.getName()).getInstanceName().toUri();
+
+  if (strName.find("random-wait") != std::string::npos) {
+    NFD_LOG_DEBUG("Dispatch to RandomWait afterSendInterest: re-tx counter="
+                  << pitEntry->retxCount);
+    this->dispatchToStrategy(*pitEntry,
+                              [&] (fw::Strategy& strategy) {
+                                strategy.afterSendInterest(pitEntry, outFace, interest);
+                              });
+  }
 }
 
 void
 Forwarder::onInterestFinalize(const shared_ptr<pit::Entry>& pitEntry)
 {
   NFD_LOG_DEBUG("onInterestFinalize interest=" << pitEntry->getName() <<
-                (pitEntry->isSatisfied ? " satisfied" : " unsatisfied"));
+                (pitEntry->isSatisfied ? " satisfied" : " unsatisfied")
+                <<" nonce = " << pitEntry->getInterest().getNonce()); // add nonce. Jiangtao Luo.
 
   if (!pitEntry->isSatisfied) {
     beforeExpirePendingInterest(*pitEntry);
@@ -322,6 +387,13 @@ Forwarder::onInterestFinalize(const shared_ptr<pit::Entry>& pitEntry)
     ++m_counters.nUnsatisfiedInterests;
   }
 
+ 
+  // Jiangtao Luo. 21 Mar 2020
+  scheduler::cancel(pitEntry->relayTimerForInterest);
+
+  // Cancel re-tx timer. 23 Mar 2020
+  scheduler::cancel(pitEntry->retxTimerForInterest);
+  
   // PIT delete
   scheduler::cancel(pitEntry->expiryTimer);
   m_pit.erase(pitEntry.get());
@@ -621,6 +693,42 @@ Forwarder::setExpiryTimer(const shared_ptr<pit::Entry>& pitEntry, time::millisec
 
   pitEntry->expiryTimer = scheduler::schedule(duration, [=] { onInterestFinalize(pitEntry); });
 }
+
+////////////////////////////////
+// Jiangtao Luo. 21 Mar 2020
+void
+Forwarder::setRelayTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+                              time::microseconds delay,
+                              Face& outFace, const Interest& interest)
+{
+  BOOST_ASSERT(pitEntry);
+  BOOST_ASSERT(delay >= 0_us);
+  scheduler::cancel(pitEntry->relayTimerForInterest);
+
+  pitEntry->relayTimerForInterest = scheduler::schedule(delay, [&, pitEntry]
+                                                         { onOutgoingInterest(pitEntry, outFace, interest);});
+
+  pitEntry->expireTimeToRelayInterest = time::steady_clock::now() + delay;
+}
+
+// Set re-transmission for relayed Interest
+void
+Forwarder::setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+                              time::milliseconds delay,
+                               Face& outFace, const Interest& interest)
+{
+  BOOST_ASSERT(pitEntry);
+  BOOST_ASSERT(delay >= 0_ms);
+  scheduler::cancel(pitEntry->retxTimerForInterest);
+
+  NFD_LOG_DEBUG("Schedule retransmission after " << delay);
+
+  pitEntry->retxTimerForInterest = scheduler::schedule(delay, [&, pitEntry]
+                                                         { onOutgoingInterest(pitEntry, outFace, interest);});
+
+  pitEntry->expireTimeToRetxInterest = time::steady_clock::now() + delay;
+}
+
 
 void
 Forwarder::insertDeadNonceList(pit::Entry& pitEntry, Face* upstream)

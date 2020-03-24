@@ -29,11 +29,13 @@
 namespace nfd {
 namespace pit {
 
+
 Entry::Entry(const Interest& interest)
   : isSatisfied(false)
   , dataFreshnessPeriod(0_ms)
   , m_interest(interest.shared_from_this())
   , m_nameTreeEntry(nullptr)
+  ,retxCount(0)  // retransmission count. Jiangtao Luo. 23 Mar 2020
 {
 }
 
@@ -120,6 +122,24 @@ Entry::deleteOutRecord(const Face& face)
     m_outRecords.erase(it);
   }
 }
+
+
+////////////////////////////////
+  // Jiangtao Luo. 22 Mar 2020
+bool
+Entry::isExpiredToSendInterest()
+{
+  return (time::steady_clock::now() - expireTimeToRelayInterest > 0_ns)?
+    true : false;
+}
+
+bool 
+Entry::isExpiredRtxInterest()
+{
+  return (time::steady_clock::now() - expireTimeToRetxInterest > 0_ns)?
+    true : false;
+}
+////////////////////////////////
 
 } // namespace pit
 } // namespace nfd
