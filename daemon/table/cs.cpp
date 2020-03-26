@@ -247,5 +247,23 @@ Cs::enableServe(bool shouldServe)
   NFD_LOG_INFO((shouldServe ? "Enabling" : "Disabling") << " Data serving");
 }
 
+////////////////////////////////
+  // Jiangtao Luo. 26 Mar 20202
+Entry*
+Cs::findEntry(const Name& dataName) const
+{
+  for (iterator it=m_table.begin(); it!=m_table.end(); it++){
+    if (it->getName() == dataName) {
+      
+      EntryImpl& entry = const_cast<EntryImpl&>(*it);
+      
+      return (Entry*)&entry;
+    }
+  }
+  return nullptr; // not found
+}
+
+////////////////////////////////
+
 } // namespace cs
 } // namespace nfd

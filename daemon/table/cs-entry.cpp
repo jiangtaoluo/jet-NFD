@@ -74,5 +74,15 @@ Entry::reset()
   m_staleTime = time::steady_clock::TimePoint();
 }
 
+////////////////////////////////
+  // Jiangtao Luo. 26 Mar 2020
+bool
+Entry::isExpiredToRelayData()
+{
+  return (time::steady_clock::now() - expireTimeToRelayData >= 0_ns)?
+    true : false;
+}
+////////////////////////////////
+
 } // namespace cs
 } // namespace nfd

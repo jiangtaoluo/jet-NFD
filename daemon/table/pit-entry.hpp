@@ -254,6 +254,8 @@ public:  // For random-wait strategy. Jiangtao Luo added. 21 Mar 2020
   // re-transmission counts;
   uint32_t retxCount;
 
+
+
 ////////////////////////////////
   
 

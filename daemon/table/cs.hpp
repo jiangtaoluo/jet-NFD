@@ -212,6 +212,13 @@ private:
 
   bool m_shouldAdmit; ///< if false, no Data will be admitted
   bool m_shouldServe; ///< if false, all lookups will miss
+
+////////////////////////////////
+  // Jiangtao Luo. 26 Mar 2020
+public:
+  Entry*
+  findEntry(const Name& dataName) const;  // look for EntryImpl for a data name
+////////////////////////////////
 };
 
 } // namespace cs

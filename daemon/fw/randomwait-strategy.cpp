@@ -173,6 +173,71 @@ RandomWaitStrategy::afterSendInterest(const shared_ptr<pit::Entry>& pitEntry, Fa
     }
 }
 
+void
+RandomWaitStrategy::afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
+                           const Face& inFace, const Data& data)
+{
+  NFD_LOG_DEBUG("afterReceiveData pitEntry=" << pitEntry->getName() <<
+                " inFace=" << inFace.getId() << " data=" << data.getName());
+
+  this->beforeSatisfyInterest(pitEntry, inFace, data);
+
+  this->sendDataToAll(pitEntry, inFace, data);
+}
+
+void
+RandomWaitStrategy::sendDataToAll(const shared_ptr<pit::Entry>& pitEntry,
+                                  const Face& inFace, const Data& data)
+{
+  std::set<Face*> pendingDownstreams;
+  auto now = time::steady_clock::now();
+
+  // remember pending downstreams
+  for (const pit::InRecord& inRecord : pitEntry->getInRecords()) {
+    if (inRecord.getExpiry() > now) {
+      if (inRecord.getFace().getId() == inFace.getId() &&
+          inRecord.getFace().getLinkType() != ndn::nfd::LINK_TYPE_AD_HOC) {
+        continue;
+      }
+      pendingDownstreams.insert(&inRecord.getFace());
+    }
+  }
+
+  for (const Face* pendingDownstream : pendingDownstreams) {
+
+    if (inFace.getScope() ==  ndn::nfd::FACE_SCOPE_LOCAL ||  // from local
+        pendingDownstream->getScope() == ndn::nfd::FACE_SCOPE_LOCAL ||  // to local
+        pendingDownstream->getLinkType() != ndn::nfd::LINK_TYPE_AD_HOC) { // non ad-hoc
+     NFD_LOG_DEBUG("From/to local or non ad-hoc link: send now ...");
+      this->sendData(pitEntry, data, *pendingDownstream);      
+    }
+    else { // ad-hoc relay
+      NFD_LOG_DEBUG("ad-hoc link relay: random wait ...");
+      this->sendDataLater(*pendingDownstream, data);
+    }
+    
+  }
+}
+
+void
+RandomWaitStrategy::sendDataLater(const Face& outFace, const Data& data)
+{
+  // 1ms -10ms
+  std::uniform_int_distribution <uint64_t> dist( DELAY_MIN.count(), DELAY_MAX.count());
+  time::microseconds delay = time::microseconds(dist(getGlobalRng()));
+
+  time::milliseconds duration = 5_ms;
+
+  NFD_LOG_DEBUG("sendDataLater for data="
+                << data.getName() << " to Face = " << outFace.getId() 
+                << " after " << delay);
+
+  getForwarder().setRelayTimerForData(delay,
+                                      *const_pointer_cast<Face>(outFace.shared_from_this()),
+                                      data);
+}
+
+
 
 } // namespace fw
 } // namespace nfd

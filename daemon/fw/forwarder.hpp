@@ -201,20 +201,7 @@ public:
    *  \sa Strategy::beforeExpirePendingInterest
    */
   signal::Signal<Forwarder, pit::Entry> beforeExpirePendingInterest;
-////////////////////////////////
-public: // For randomWait test
-    // Set a new random wait timer on a PIT entry
-  // Jiangtao Luo. 21 Mar 2020
-  void setRelayTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
-                              time::microseconds delay,
-                          Face& outFace, const Interest& interest);
 
-  // Set re-transmission for relayed Interest
-  void
-  setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
-                              time::milliseconds delay,
-                                      Face& outFace, const Interest& interest);
-////////////////////////////////  
 
 PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
   ////////////////////////////////
@@ -320,6 +307,27 @@ PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   {
     trigger(m_strategyChoice.findEffectiveStrategy(pitEntry));
   }
+
+////////////////////////////////
+public: // For randomWait test
+    // Set a new random wait timer on a PIT entry
+  // Jiangtao Luo. 21 Mar 2020
+  void setRelayTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+                              time::microseconds delay,
+                          Face& outFace, const Interest& interest);
+
+  // Set re-transmission for relayed Interest
+  void
+  setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+                              time::milliseconds delay,
+                                      Face& outFace, const Interest& interest);
+////////////////////////////////
+  ////////////////////////////////
+  // Set random wait for Data
+  // Jiangtao Luo. 24 Mar 2020
+  void
+  setRelayTimerForData(time::microseconds delay, Face& outFace, const Data& data);
+////////////////////////////////
 
 private:
   ////////////////////////////////

@@ -28,6 +28,7 @@
 
 #include "cs-entry.hpp"
 
+
 namespace nfd {
 namespace cs {
 
@@ -65,6 +66,7 @@ private:
 private:
   Name m_queryName;
 };
+
 
 } // namespace cs
 } // namespace nfd

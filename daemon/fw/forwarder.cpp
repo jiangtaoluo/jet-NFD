@@ -94,11 +94,11 @@ void Forwarder::onRandomWaitLoopInterest(Face& inFace, const Interest& interest)
   shared_ptr<pit::Entry> pitEntry = m_pit.find(interest);
 
   if (!pitEntry->isExpiredToSendInterest()) {
-    NFD_LOG_DEBUG("Cancel the scheduled Interest transmission)");
+    NFD_LOG_DEBUG("Cancel the scheduled Interest transmission!");
     scheduler::cancel(pitEntry->relayTimerForInterest);
   }
   else if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
-    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!)");
+    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!");
 
     pitEntry->retxCount = 0; // reset re-tx count
     scheduler::cancel(pitEntry->retxTimerForInterest);
@@ -350,19 +350,34 @@ Forwarder::onOutgoingInterest(const shared_ptr<pit::Entry>& pitEntry, Face& outF
   outFace.sendInterest(interest);
   ++m_counters.nOutInterests;
 
+  ////////////////////////////////////////////////////////////////
   // if random wait, start re-tx
   // Jiangtao Luo. 22 March
+  // if not from local
 
-  std::string strName = m_strategyChoice.findEffectiveStrategy(interest.getName()).getInstanceName().toUri();
+  std::list<nfd::pit::InRecord>::iterator inBegin =  pitEntry->in_begin();
 
-  if (strName.find("random-wait") != std::string::npos) {
-    NFD_LOG_DEBUG("Dispatch to RandomWait afterSendInterest: re-tx counter="
-                  << pitEntry->retxCount);
-    this->dispatchToStrategy(*pitEntry,
-                              [&] (fw::Strategy& strategy) {
-                                strategy.afterSendInterest(pitEntry, outFace, interest);
-                              });
+  nfd::pit::InRecord& inRecord = *inBegin;
+  
+  Face& inFace = inRecord.getFace();
+  
+  if (inFace.getScope() != ndn::nfd::FACE_SCOPE_LOCAL &&
+      outFace.getScope() != ndn::nfd::FACE_SCOPE_LOCAL)
+    { // not from local and not to local
+    NFD_LOG_DEBUG("inFace="<<inFace.getId() << ", Not from local, schedule for re-transmission ...");
+    std::string strName =
+      m_strategyChoice.findEffectiveStrategy(interest.getName()).getInstanceName().toUri();
+
+    if (strName.find("random-wait") != std::string::npos) {
+      NFD_LOG_DEBUG("Dispatch to RandomWait afterSendInterest: re-tx counter="
+                    << pitEntry->retxCount);
+      this->dispatchToStrategy(*pitEntry,
+                               [&] (fw::Strategy& strategy) {
+                                 strategy.afterSendInterest(pitEntry, outFace, interest); });
+    }
   }
+  ////////////////////////////////////////////////////////////////
+
 }
 
 void
@@ -387,12 +402,22 @@ Forwarder::onInterestFinalize(const shared_ptr<pit::Entry>& pitEntry)
     ++m_counters.nUnsatisfiedInterests;
   }
 
- 
-  // Jiangtao Luo. 21 Mar 2020
-  scheduler::cancel(pitEntry->relayTimerForInterest);
+ ////////////////////////////////
 
-  // Cancel re-tx timer. 23 Mar 2020
-  scheduler::cancel(pitEntry->retxTimerForInterest);
+   // Check before cancel scheduled interest relay or retransmission
+  // Jiangtao Luo. 25 Mar 2020
+  
+  if (!pitEntry->isExpiredToSendInterest()) {
+    NFD_LOG_DEBUG("Cancel the scheduled Interest transmission!");
+    scheduler::cancel(pitEntry->relayTimerForInterest);
+  }
+  if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
+    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!");
+
+    pitEntry->retxCount = 0; // reset re-tx count
+    scheduler::cancel(pitEntry->retxTimerForInterest);
+  }
+ ////////////////////////////////
   
   // PIT delete
   scheduler::cancel(pitEntry->expiryTimer);
@@ -457,6 +482,20 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     auto& pitEntry = pitMatches.front();
 
     NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
+
+      // Check before cancel scheduled interest relay or retransmission
+  // Jiangtao Luo. 25 Mar 2020
+  
+  if (!pitEntry->isExpiredToSendInterest()) {
+    NFD_LOG_DEBUG("Cancel the scheduled Interest transmission!");
+    scheduler::cancel(pitEntry->relayTimerForInterest);
+  }
+  if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
+    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!");
+
+    pitEntry->retxCount = 0; // reset re-tx count
+    scheduler::cancel(pitEntry->retxTimerForInterest);
+  }
 
     // set PIT expiry timer to now
     this->setExpiryTimer(pitEntry, 0_ms);
@@ -694,6 +733,38 @@ Forwarder::setExpiryTimer(const shared_ptr<pit::Entry>& pitEntry, time::millisec
   pitEntry->expiryTimer = scheduler::schedule(duration, [=] { onInterestFinalize(pitEntry); });
 }
 
+void
+Forwarder::insertDeadNonceList(pit::Entry& pitEntry, Face* upstream)
+{
+  // need Dead Nonce List insert?
+  bool needDnl = true;
+  if (pitEntry.isSatisfied) {
+    BOOST_ASSERT(pitEntry.dataFreshnessPeriod >= 0_ms);
+    needDnl = static_cast<bool>(pitEntry.getInterest().getMustBeFresh()) &&
+              pitEntry.dataFreshnessPeriod < m_deadNonceList.getLifetime();
+  }
+
+  if (!needDnl) {
+    return;
+  }
+
+  // Dead Nonce List insert
+  if (upstream == nullptr) {
+    // insert all outgoing Nonces
+    const auto& outRecords = pitEntry.getOutRecords();
+    std::for_each(outRecords.begin(), outRecords.end(), [&] (const auto& outRecord) {
+      m_deadNonceList.add(pitEntry.getName(), outRecord.getLastNonce());
+    });
+  }
+  else {
+    // insert outgoing Nonce of a specific face
+    auto outRecord = pitEntry.getOutRecord(*upstream);
+    if (outRecord != pitEntry.getOutRecords().end()) {
+      m_deadNonceList.add(pitEntry.getName(), outRecord->getLastNonce());
+    }
+  }
+}
+
 ////////////////////////////////
 // Jiangtao Luo. 21 Mar 2020
 void
@@ -730,36 +801,28 @@ Forwarder::setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
 }
 
 
+////////////////////////////////
+// Set relay timer for Data
+// Jiangtao Luo. 24 Mar 2020
 void
-Forwarder::insertDeadNonceList(pit::Entry& pitEntry, Face* upstream)
+Forwarder::setRelayTimerForData(time::microseconds delay, Face& outFace, const Data& data)
 {
-  // need Dead Nonce List insert?
-  bool needDnl = true;
-  if (pitEntry.isSatisfied) {
-    BOOST_ASSERT(pitEntry.dataFreshnessPeriod >= 0_ms);
-    needDnl = static_cast<bool>(pitEntry.getInterest().getMustBeFresh()) &&
-              pitEntry.dataFreshnessPeriod < m_deadNonceList.getLifetime();
-  }
+  
+  BOOST_ASSERT(delay >= 0_us);
+  NFD_LOG_DEBUG("setRelayTimerForData, data="
+                << data.getName() << " to Face = " << outFace.getId() 
+                << " after " << delay);
 
-  if (!needDnl) {
-    return;
-  }
+  cs::Entry *csEntry = m_cs.findEntry(data.getName());
+  csEntry->expireTimeToRelayData =  time::steady_clock::now() + delay;
 
-  // Dead Nonce List insert
-  if (upstream == nullptr) {
-    // insert all outgoing Nonces
-    const auto& outRecords = pitEntry.getOutRecords();
-    std::for_each(outRecords.begin(), outRecords.end(), [&] (const auto& outRecord) {
-      m_deadNonceList.add(pitEntry.getName(), outRecord.getLastNonce());
-    });
-  }
-  else {
-    // insert outgoing Nonce of a specific face
-    auto outRecord = pitEntry.getOutRecord(*upstream);
-    if (outRecord != pitEntry.getOutRecords().end()) {
-      m_deadNonceList.add(pitEntry.getName(), outRecord->getLastNonce());
-    }
-  }
+  //onOutgoingData(data, outFace);
+  
+ 
+  csEntry->relayTimerForData = scheduler::schedule(delay, [&]
+                                                          { onOutgoingData(data, outFace);});
+
 }
+////////////////////////////////
 
 } // namespace nfd

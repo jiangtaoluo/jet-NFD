@@ -28,6 +28,8 @@
 
 #include "core/common.hpp"
 
+#include "core/scheduler.hpp" // Jiangtao Luo. 26 Mar 2020
+
 namespace nfd {
 namespace cs {
 
@@ -137,6 +139,21 @@ private:
   shared_ptr<const Data> m_data;
   bool m_isUnsolicited;
   time::steady_clock::TimePoint m_staleTime;
+
+////////////////////////////////
+public:
+  // random wait for Data
+  // Jiangtao Luo. 26 Mar 2020
+   // This timer is used fot deferring forwarding randomly
+  scheduler::EventId relayTimerForData;
+
+  // Schedule sending at 
+  time::steady_clock::TimePoint expireTimeToRelayData;
+
+  bool
+  isExpiredToRelayData(); // if expired to relay Data
+
+////////////////////////////////
 };
 
 } // namespace cs

@@ -2,7 +2,7 @@
 /**
  * Copyright (c) 2020-2022,  Chongqing University of Posts and TelecommunicationsK
  
- *
+ * For random-wait strategy
  * This file is my extension of NFD (Named Data Networking Forwarding Daemon).
  * Jiangtao Luo
  * 16 Mar 2020
@@ -49,7 +49,9 @@ public:
   afterSendInterest(const shared_ptr<pit::Entry>& pitEntry,
                     Face& outFace, const Interest& interest);
 
-
+  void
+  afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
+                   const Face& inFace, const Data& data);
 protected:
   // Clone a new Interest, increase ite hop couont and send it in a random delay
    VIRTUAL_WITH_TESTS void
@@ -59,7 +61,11 @@ protected:
    // Scheduled send
    //VIRTUAL_WITH_TESTS void
   //doSendInterestLater(Face& outFace, const Interest& interest);
+  VIRTUAL_WITH_TESTS void
+  sendDataToAll(const shared_ptr<pit::Entry>& pitEntry, const Face& inFace, const Data& data);
 
+  VIRTUAL_WITH_TESTS void
+  sendDataLater(const Face& outFace, const Data& data);
 
 private:
   friend ProcessNackTraits<RandomWaitStrategy>;

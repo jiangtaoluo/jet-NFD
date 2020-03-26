@@ -37,6 +37,9 @@ Entry::Entry(const Interest& interest)
   , m_nameTreeEntry(nullptr)
   ,retxCount(0)  // retransmission count. Jiangtao Luo. 23 Mar 2020
 {
+  // initilize timepoints. Jiangtao Luo. 25 Mar
+  expireTimeToRelayInterest =  time::steady_clock::now();
+  expireTimeToRetxInterest =  time::steady_clock::now();
 }
 
 bool
@@ -129,16 +132,17 @@ Entry::deleteOutRecord(const Face& face)
 bool
 Entry::isExpiredToSendInterest()
 {
-  return (time::steady_clock::now() - expireTimeToRelayInterest > 0_ns)?
+  return (time::steady_clock::now() - expireTimeToRelayInterest >= 0_ns)?
     true : false;
 }
 
 bool 
 Entry::isExpiredRtxInterest()
 {
-  return (time::steady_clock::now() - expireTimeToRetxInterest > 0_ns)?
+  return (time::steady_clock::now() - expireTimeToRetxInterest >= 0_ns)?
     true : false;
 }
+
 ////////////////////////////////
 
 } // namespace pit
