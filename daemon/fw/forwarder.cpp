@@ -93,18 +93,23 @@ void Forwarder::onRandomWaitLoopInterest(Face& inFace, const Interest& interest)
    // Jiangtao Luo. 21 Mar 2020
   shared_ptr<pit::Entry> pitEntry = m_pit.find(interest);
 
-  if (!pitEntry->isExpiredToSendInterest()) {
+  if (pitEntry != nullptr && !pitEntry->isExpiredToSendInterest()) {
     NFD_LOG_DEBUG("Cancel the scheduled Interest transmission!");
     scheduler::cancel(pitEntry->relayTimerForInterest);
   }
-  else if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
-    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!");
+  // else if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
+  //   NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!");
 
-    pitEntry->retxCount = 0; // reset re-tx count
-    scheduler::cancel(pitEntry->retxTimerForInterest);
+  //   pitEntry->retxCount = 0; // reset re-tx count
+  //   scheduler::cancel(pitEntry->retxTimerForInterest);
+  // }
+  else if (pitEntry == nullptr) {
+    NFD_LOG_DEBUG("PIT entry expired! Drop loop interest!");
   }
-  else
-    NFD_LOG_DEBUG("Drop no sent Interest!");
+  else {
+     NFD_LOG_DEBUG("Drop loop interest!");
+  }
+
 }
 
   ////////////////////////////////
@@ -340,6 +345,7 @@ Forwarder::onContentStoreHit(const Face& inFace, const shared_ptr<pit::Entry>& p
 void
 Forwarder::onOutgoingInterest(const shared_ptr<pit::Entry>& pitEntry, Face& outFace, const Interest& interest)
 {
+  BOOST_ASSERT(pitEntry); // Jiangtao Luo. 26 Mar 2020
   NFD_LOG_DEBUG("onOutgoingInterest face=" << outFace.getId() <<
                 " interest=" << pitEntry->getName() << " Nonce= "<< interest.getNonce()); // add nonce. Jiangtao Luo
 
@@ -428,7 +434,7 @@ void
 Forwarder::onIncomingData(Face& inFace, const Data& data)
 {
   // receive Data
-  NFD_LOG_DEBUG("onIncomingData face=" << inFace.getId() << " data=" << data.getName());
+  NFD_LOG_DEBUG(this << "->onIncomingData face=" << inFace.getId() << " data=" << data.getName());
 
   // Jiangtao Luo. 12 Feb 2020
   NFD_LOG_DEBUG("Emergency Ind = " << data.getEmergencyInd());
@@ -482,20 +488,6 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     auto& pitEntry = pitMatches.front();
 
     NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
-
-      // Check before cancel scheduled interest relay or retransmission
-  // Jiangtao Luo. 25 Mar 2020
-  
-  if (!pitEntry->isExpiredToSendInterest()) {
-    NFD_LOG_DEBUG("Cancel the scheduled Interest transmission!");
-    scheduler::cancel(pitEntry->relayTimerForInterest);
-  }
-  if (!pitEntry->isExpiredRtxInterest()) {  // if re-tx not expired, cancel it.
-    NFD_LOG_DEBUG("Cancel the scheduled Interest re-transmission!");
-
-    pitEntry->retxCount = 0; // reset re-tx count
-    scheduler::cancel(pitEntry->retxTimerForInterest);
-  }
 
     // set PIT expiry timer to now
     this->setExpiryTimer(pitEntry, 0_ms);
@@ -590,7 +582,7 @@ Forwarder::onOutgoingData(const Data& data, Face& outFace)
     NFD_LOG_WARN("onOutgoingData face=invalid data=" << data.getName());
     return;
   }
-  NFD_LOG_DEBUG("onOutgoingData face=" << outFace.getId() << " data=" << data.getName());
+  NFD_LOG_DEBUG(this <<"->onOutgoingData face=" << outFace.getId() << " data=" << data.getName());
 
   // /localhost scope control
   bool isViolatingLocalhost = outFace.getScope() == ndn::nfd::FACE_SCOPE_NON_LOCAL &&
@@ -768,36 +760,68 @@ Forwarder::insertDeadNonceList(pit::Entry& pitEntry, Face* upstream)
 ////////////////////////////////
 // Jiangtao Luo. 21 Mar 2020
 void
-Forwarder::setRelayTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
-                              time::microseconds delay,
-                              Face& outFace, const Interest& interest)
+// Forwarder::setRelayTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+//                               time::microseconds delay,
+//                               Face& outFace, const Interest& interest)
+Forwarder::setRelayTimerForInterest(time::microseconds delay, FaceId outFaceId, const Interest& interest)
+
 {
-  BOOST_ASSERT(pitEntry);
   BOOST_ASSERT(delay >= 0_us);
-  scheduler::cancel(pitEntry->relayTimerForInterest);
 
-  pitEntry->relayTimerForInterest = scheduler::schedule(delay, [&, pitEntry]
-                                                         { onOutgoingInterest(pitEntry, outFace, interest);});
+  shared_ptr<pit::Entry> pitEntry = m_pit.find(interest);
 
-  pitEntry->expireTimeToRelayInterest = time::steady_clock::now() + delay;
+  if(pitEntry != nullptr) {
+    scheduler::cancel(pitEntry->relayTimerForInterest);
+
+    // pitEntry->relayTimerForInterest = scheduler::schedule(delay, [&, pitEntry]
+    //                                                      { onOutgoingInterest(pitEntry, outFace, interest);});
+
+    NFD_LOG_DEBUG("Set relay for Interest=" << interest.getName() <<
+                  "Nonce="<< interest.getNonce() << " after delay=" << delay);
+    pitEntry->relayTimerForInterest = scheduler::schedule(delay, [=]
+                                                         {
+                                                           const Interest& interest = pitEntry->getInterest();
+                                                           Face* outFace = getFace(outFaceId);
+
+                                                           onOutgoingInterest(pitEntry, *outFace, interest);});
+
+    pitEntry->expireTimeToRelayInterest = time::steady_clock::now() + delay;
+  }
 }
+  
+
 
 // Set re-transmission for relayed Interest
+// void
+// Forwarder::setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
+//                               time::milliseconds delay,
+//                                Face& outFace, const Interest& interest)
 void
-Forwarder::setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
-                              time::milliseconds delay,
-                               Face& outFace, const Interest& interest)
+Forwarder::setRetxTimerForInterest(time::milliseconds delay, FaceId outFaceId, const Interest& interest)
 {
-  BOOST_ASSERT(pitEntry);
   BOOST_ASSERT(delay >= 0_ms);
-  scheduler::cancel(pitEntry->retxTimerForInterest);
 
-  NFD_LOG_DEBUG("Schedule retransmission after " << delay);
+  shared_ptr<pit::Entry> pitEntry = m_pit.find(interest);
 
-  pitEntry->retxTimerForInterest = scheduler::schedule(delay, [&, pitEntry]
-                                                         { onOutgoingInterest(pitEntry, outFace, interest);});
+  if (pitEntry != nullptr) {
+     scheduler::cancel(pitEntry->retxTimerForInterest);
 
-  pitEntry->expireTimeToRetxInterest = time::steady_clock::now() + delay;
+     NFD_LOG_DEBUG("Set re-tx for Interest=" << interest.getName() <<
+                  "Nonce=" << interest.getNonce() << " after delay=" << delay);
+
+  // pitEntry->retxTimerForInterest = scheduler::schedule(delay, [&, pitEntry]
+  //                                                        { onOutgoingInterest(pitEntry, outFace, interest);});
+     pitEntry->retxTimerForInterest =
+       scheduler::schedule(delay, [=] {  const Interest& interest = pitEntry->getInterest();
+                                      Face* outFace = getFace(outFaceId);
+                                      onOutgoingInterest(pitEntry, *outFace, interest);});
+
+     pitEntry->expireTimeToRetxInterest = time::steady_clock::now() + delay;
+  }
+  else {
+    NFD_LOG_DEBUG("PIT entry expired!!!");
+  }
+
 }
 
 
@@ -805,24 +829,33 @@ Forwarder::setRetxTimerForInterest(const shared_ptr<pit::Entry>& pitEntry,
 // Set relay timer for Data
 // Jiangtao Luo. 24 Mar 2020
 void
-Forwarder::setRelayTimerForData(time::microseconds delay, Face& outFace, const Data& data)
+//Forwarder::setRelayTimerForData(time::microseconds delay, Face& outFace, const Data& data)
+Forwarder::setRelayTimerForData(time::microseconds delay, FaceId outFaceId, const Data& data)
+  
 {
   
   BOOST_ASSERT(delay >= 0_us);
   NFD_LOG_DEBUG("setRelayTimerForData, data="
-                << data.getName() << " to Face = " << outFace.getId() 
+                << data.getName() << " to Face = " << outFaceId 
                 << " after " << delay);
 
   cs::Entry *csEntry = m_cs.findEntry(data.getName());
-  csEntry->expireTimeToRelayData =  time::steady_clock::now() + delay;
+  if (csEntry != nullptr) {
 
-  //onOutgoingData(data, outFace);
-  
- 
-  csEntry->relayTimerForData = scheduler::schedule(delay, [&]
-                                                          { onOutgoingData(data, outFace);});
+    scheduler::cancel(csEntry->relayTimerForData);
+
+    csEntry->relayTimerForData = scheduler::schedule(delay, [=] {
+    //csEntry->relayTimerForData = scheduler::schedule(delay, [=, &data] {
+                                                              NFD_LOG_DEBUG("Scheduled relay data from " << this);
+                                                              const Data& data2 = csEntry->getData();
+                                                              Face* outFace = getFace(outFaceId);
+                                                              this->onOutgoingData(data2, *outFace);});
+
+    csEntry->expireTimeToRelayData =  time::steady_clock::now() + delay;
+  }
 
 }
+ 
 ////////////////////////////////
 
 } // namespace nfd

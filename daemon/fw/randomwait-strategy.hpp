@@ -52,6 +52,10 @@ public:
   void
   afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
                    const Face& inFace, const Data& data);
+
+  void
+   afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
+                        const Face& outFace, const Data& data);
 protected:
   // Clone a new Interest, increase ite hop couont and send it in a random delay
    VIRTUAL_WITH_TESTS void

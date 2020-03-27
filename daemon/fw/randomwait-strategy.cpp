@@ -31,7 +31,7 @@ const time::microseconds RandomWaitStrategy::DELAY_MIN(500); // 0.5 ms
   
 const time::milliseconds RandomWaitStrategy::RETX_TIMER_UNIT(500); // 500ms per retx
 
-  const uint32_t MAX_RETX_COUNT = 3; // maximum allowed retransmission
+  const uint32_t MAX_RETX_COUNT = 5; // maximum allowed retransmission
 
 RandomWaitStrategy::RandomWaitStrategy(Forwarder& forwarder, const Name& name)
   : Strategy(forwarder)
@@ -152,7 +152,8 @@ RandomWaitStrategy::sendInterestLater(Face& outFace, const Interest& interest,
                 << interest.getName().toUri()
                 << " in " << delay);
 
-  getForwarder().setRelayTimerForInterest(pitEntry, delay, outFace, interest);
+  //getForwarder().setRelayTimerForInterest(pitEntry, delay, outFace, interest);
+  getForwarder().setRelayTimerForInterest(delay, outFace.getId(), interest);
 }
 
 void
@@ -164,7 +165,9 @@ RandomWaitStrategy::afterSendInterest(const shared_ptr<pit::Entry>& pitEntry, Fa
     time::milliseconds delay =
       time::milliseconds((++pitEntry->retxCount)*RETX_TIMER_UNIT);
 
-    getForwarder().setRetxTimerForInterest(pitEntry, delay, outFace, interest);
+    //getForwarder().setRetxTimerForInterest(pitEntry, delay, outFace, interest);
+    getForwarder().setRetxTimerForInterest(delay, outFace.getId(), interest);
+    
     
   }
   else
@@ -226,18 +229,27 @@ RandomWaitStrategy::sendDataLater(const Face& outFace, const Data& data)
   std::uniform_int_distribution <uint64_t> dist( DELAY_MIN.count(), DELAY_MAX.count());
   time::microseconds delay = time::microseconds(dist(getGlobalRng()));
 
-  time::milliseconds duration = 5_ms;
-
   NFD_LOG_DEBUG("sendDataLater for data="
                 << data.getName() << " to Face = " << outFace.getId() 
                 << " after " << delay);
 
-  getForwarder().setRelayTimerForData(delay,
-                                      *const_pointer_cast<Face>(outFace.shared_from_this()),
-                                      data);
+  getForwarder().setRelayTimerForData(delay, outFace.getId(), data);
 }
-
-
+void
+RandomWaitStrategy::afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
+                        const Face& outFace, const Data& data)
+{
+  NFD_LOG_DEBUG("afterContentStoreHit pitEntry=" << pitEntry->getName() <<
+                " outFace=" << outFace.getId() << " data=" << data.getName());
+  // isExpiredToRelayData
+  cs::Entry *csEntry = getForwarder().getCs().findEntry(data.getName());
+  if (!csEntry->isExpiredToRelayData()) { // if not expired, cancel scheduled tx
+    NFD_LOG_DEBUG("Cancel scheduled Data relay and send now!!!");
+    scheduler::cancel(csEntry->relayTimerForData);
+  }
+  this->sendData(pitEntry, data, outFace);
+    
+}
 
 } // namespace fw
 } // namespace nfd
