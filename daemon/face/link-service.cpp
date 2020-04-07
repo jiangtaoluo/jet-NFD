@@ -34,6 +34,7 @@ NFD_LOG_INIT(LinkService);
 LinkService::LinkService()
   : m_face(nullptr)
   , m_transport(nullptr)
+  ,m_isInterestOnCch(false) // Jiangtao Luo. 2 April 2020
 {
 }
 

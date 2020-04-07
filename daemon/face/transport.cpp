@@ -116,6 +116,36 @@ Transport::send(Packet&& packet)
   this->doSend(std::move(packet));
 }
 
+////////////////////////////////
+// Jiangtao Luo. 2 April 2020
+void
+Transport::sendX(Packet&& packet)
+{
+  BOOST_ASSERT(this->getMtu() == MTU_UNLIMITED ||
+               packet.packet.size() <= static_cast<size_t>(this->getMtu()));
+
+  TransportState state = this->getState();
+  if (state != TransportState::UP && state != TransportState::DOWN) {
+    NFD_LOG_FACE_TRACE("send ignored in " << state << " state");
+    return;
+  }
+
+  if (state == TransportState::UP) {
+    ++this->nOutPackets;
+    this->nOutBytes += packet.packet.size();
+  }
+
+  this->doSendX(std::move(packet));
+}
+
+void
+Transport::doSendX(Packet&& packet)
+{
+  doSend(std::move(packet));
+}
+
+////////////////////////////////
+
 void
 Transport::receive(Packet&& packet)
 {

@@ -26,10 +26,13 @@ NFD_LOG_INIT(RandomWaitStrategy);
 const time::milliseconds RandomWaitStrategy::RETX_SUPPRESSION_INITIAL(10);
 const time::milliseconds RandomWaitStrategy::RETX_SUPPRESSION_MAX(250);
 
-const time::microseconds RandomWaitStrategy::DELAY_MAX(3000); // 3 ms
-const time::microseconds RandomWaitStrategy::DELAY_MIN(500); // 0.5 ms
+const time::microseconds RandomWaitStrategy::DELAY_MAX_INTEREST(3000); // 3 ms
+const time::microseconds RandomWaitStrategy::DELAY_MIN_INTEREST(500); // 0.5 ms
   
 const time::milliseconds RandomWaitStrategy::RETX_TIMER_UNIT(500); // 500ms per retx
+
+const time::microseconds RandomWaitStrategy::DELAY_MAX_DATA(10000); // 10 ms
+const time::microseconds RandomWaitStrategy::DELAY_MIN_DATA(1000); // 1 ms 
 
   const uint32_t MAX_RETX_COUNT = 5; // maximum allowed retransmission
 
@@ -63,9 +66,6 @@ void
 RandomWaitStrategy::afterReceiveInterest(const Face& inFace, const Interest& interest,
                                         const shared_ptr<pit::Entry>& pitEntry)
 {
- // Jiangtao Luo. 14 Feb 2020
-  NFD_LOG_DEBUG("RandomWait slected for :"<<interest.getName() );
- 
   // // Clone a new Interest. Jiangtao Luo. 18 Mar 2020
   // Block block = interest.wireEncode();
   // shared_ptr<Interest> pNewInterest = make_shared<Interest>(block);
@@ -145,7 +145,7 @@ RandomWaitStrategy::sendInterestLater(Face& outFace, const Interest& interest,
                                       const shared_ptr<pit::Entry>& pitEntry)
 {
   // 1ms -10ms
-  std::uniform_int_distribution <uint64_t> dist( DELAY_MIN.count(), DELAY_MAX.count());
+  std::uniform_int_distribution <uint64_t> dist( DELAY_MIN_INTEREST.count(), DELAY_MAX_INTEREST.count());
   time::microseconds delay = time::microseconds(dist(getGlobalRng()));
 
   NFD_LOG_DEBUG("RandomWaitStrategy::sendInterestLater for "
@@ -226,7 +226,7 @@ void
 RandomWaitStrategy::sendDataLater(const Face& outFace, const Data& data)
 {
   // 1ms -10ms
-  std::uniform_int_distribution <uint64_t> dist( DELAY_MIN.count(), DELAY_MAX.count());
+  std::uniform_int_distribution <uint64_t> dist( DELAY_MIN_DATA.count(), DELAY_MAX_DATA.count());
   time::microseconds delay = time::microseconds(dist(getGlobalRng()));
 
   NFD_LOG_DEBUG("sendDataLater for data="

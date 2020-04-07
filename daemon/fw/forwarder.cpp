@@ -158,12 +158,15 @@ void
 Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
 {
   // receive Interest
-  NFD_LOG_DEBUG("onIncomingInterest face=" << inFace.getId() <<
-                " interest=" << interest.getName() << "nonce=" << interest.getNonce()); // add nonce. Jiangtao Luo
+  NFD_LOG_DEBUG(this <<"->onIncomingInterest face=" << inFace.getId() <<
+                " interest=" << interest.getName() << "nonce=" <<
+                interest.getNonce()); // add nonce. Jiangtao Luo
   interest.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
   ++m_counters.nInInterests;
 
-  // /localhost scope control
+
+
+   // /localhost scope control
   bool isViolatingLocalhost = inFace.getScope() == ndn::nfd::FACE_SCOPE_NON_LOCAL &&
                               scope_prefix::LOCALHOST.isPrefixOf(interest.getName());
   if (isViolatingLocalhost) {
@@ -346,12 +349,20 @@ void
 Forwarder::onOutgoingInterest(const shared_ptr<pit::Entry>& pitEntry, Face& outFace, const Interest& interest)
 {
   BOOST_ASSERT(pitEntry); // Jiangtao Luo. 26 Mar 2020
-  NFD_LOG_DEBUG("onOutgoingInterest face=" << outFace.getId() <<
+  NFD_LOG_DEBUG(this <<"->onOutgoingInterest face=" << outFace.getId() <<
                 " interest=" << pitEntry->getName() << " Nonce= "<< interest.getNonce()); // add nonce. Jiangtao Luo
 
   // insert out-record
   pitEntry->insertOrUpdateOutRecord(outFace, interest);
 
+  ////////////////////////////////
+    // Jiangtao Luo. 1 April 2020
+  interest.setTag(make_shared<lp::CchTag>(1));
+  // if (outFace.getId() == 257) {
+  //   NFD_LOG_INFO("FaceId = 257, set on CCH!!!");
+  //   outFace.setInterestOnCch(); // set Interest on CCH
+  // }
+  ////////////////////////////////
   // send Interest
   outFace.sendInterest(interest);
   ++m_counters.nOutInterests;
@@ -437,7 +448,7 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
   NFD_LOG_DEBUG(this << "->onIncomingData face=" << inFace.getId() << " data=" << data.getName());
 
   // Jiangtao Luo. 12 Feb 2020
-  NFD_LOG_DEBUG("Emergency Ind = " << data.getEmergencyInd());
+  //NFD_LOG_DEBUG("Emergency Ind = " << data.getEmergencyInd());
     
   data.setTag(make_shared<lp::IncomingFaceIdTag>(inFace.getId()));
   ++m_counters.nInData;
@@ -558,8 +569,6 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
 void
 Forwarder::onDataUnsolicited(Face& inFace, const Data& data)
 {
-  // For test. Jiangtao Luo. 12 Feb 2020
-  NFD_LOG_INFO("Forwarder: Entering onDataUnsolicited, data = " << data.getName());
   // accept to cache?
   fw::UnsolicitedDataDecision decision = m_unsolicitedDataPolicy->decide(inFace, data);
   if (decision == fw::UnsolicitedDataDecision::CACHE) {
@@ -570,9 +579,25 @@ Forwarder::onDataUnsolicited(Face& inFace, const Data& data)
       m_csFromNdnSim->Add(data.shared_from_this());
   }
 
-  NFD_LOG_DEBUG("onDataUnsolicited face=" << inFace.getId() <<
-                " data=" << data.getName() <<
-                " decision=" << decision);
+  ////////////////////////////////
+    // reditect for randomWaitStrategy
+    // Jiangtao Luo. 18 Mar 2020
+   std::string strName = m_strategyChoice.findEffectiveStrategy(data.getName()).
+     getInstanceName().toUri();
+
+  if (strName.find("random-wait") != std::string::npos) {
+      // randomWaitStrategy
+    return this->onRandomWaitDataUnsolicited(inFace, data);
+  }
+  else {
+    NFD_LOG_DEBUG("onDataUnsolicited face=" << inFace.getId() <<
+                  " data=" << data.getName() <<
+                  " decision=" << decision);
+  }
+  ////////////////////////////////
+  // NFD_LOG_DEBUG("onDataUnsolicited face=" << inFace.getId() <<
+  //                 " data=" << data.getName() <<
+  //                 " decision=" << decision);
 }
 
 void
@@ -854,6 +879,15 @@ Forwarder::setRelayTimerForData(time::microseconds delay, FaceId outFaceId, cons
     csEntry->expireTimeToRelayData =  time::steady_clock::now() + delay;
   }
 
+}
+
+void Forwarder::onRandomWaitDataUnsolicited(Face& inFace, const Data& data)
+{
+  cs::Entry *csEntry = m_cs.findEntry(data.getName());
+  if (csEntry != nullptr) {
+    scheduler::cancel(csEntry->relayTimerForData);
+  }
+  
 }
  
 ////////////////////////////////

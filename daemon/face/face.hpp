@@ -191,12 +191,29 @@ public: // dynamic properties
   const FaceCounters&
   getCounters() const;
 
+  ////////////////////////////////
+  // Jiangtao Luo. 2 April 2020
+  void
+  setInterestOnCch();
+
+  void clearInterestOnCch();
+
+  bool isInterestOnCch() const;
+  
+  ////////////////////////////////
+
+
 private:
   FaceId m_id;
   unique_ptr<LinkService> m_service;
   unique_ptr<Transport> m_transport;
   FaceCounters m_counters;
   uint64_t m_metric;
+
+  ////////////////////////////////
+  // Allow Interest on CCH. Jiangtao Luo. 2 April 2020
+  bool m_isInterestOnCch;
+  ////////////////////////////////
 };
 
 inline LinkService*
@@ -315,6 +332,30 @@ Face::getCounters() const
 
 std::ostream&
 operator<<(std::ostream& os, const FaceLogHelper<Face>& flh);
+
+////////////////////////////////
+// Jiangtao Luo. 2 April 2020
+inline void
+Face::setInterestOnCch()
+{
+  m_isInterestOnCch = true;
+
+  m_service->setInterestOnCch();
+}
+
+inline void
+Face::clearInterestOnCch()
+{
+  m_isInterestOnCch = false;
+  m_service->clearInterestOnCch();
+}
+
+inline bool
+Face::isInterestOnCch() const
+{
+  return m_isInterestOnCch;
+}
+////////////////////////////////
 
 } // namespace face
 

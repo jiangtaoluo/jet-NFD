@@ -87,8 +87,35 @@ GenericLinkService::sendLpPacket(lp::Packet&& pkt)
     NFD_LOG_FACE_WARN("attempted to send packet over MTU limit");
     return;
   }
+  
   this->sendPacket(std::move(tp));
 }
+////////////////////////////////
+// For interest. Jiangtao Luo. 2 April 2020
+void
+GenericLinkService::sendLpPacketX(lp::Packet&& pkt)
+{
+  NFD_LOG_INFO("Entering sendLpPacketX ...");
+  const ssize_t mtu = this->getTransport()->getMtu();
+
+  if (m_options.reliabilityOptions.isEnabled) {
+    m_reliability.piggyback(pkt, mtu);
+  }
+
+  if (m_options.allowCongestionMarking) {
+    checkCongestionLevel(pkt);
+  }
+
+  Transport::Packet tp(pkt.wireEncode());
+  if (mtu != MTU_UNLIMITED && tp.packet.size() > static_cast<size_t>(mtu)) {
+    ++this->nOutOverMtu;
+    NFD_LOG_FACE_WARN("attempted to send packet over MTU limit");
+    return;
+  }
+  
+  this->sendPacketX(std::move(tp));
+}
+////////////////////////////////
 
 void
 GenericLinkService::doSendInterest(const Interest& interest)
@@ -155,6 +182,19 @@ GenericLinkService::encodeLpFields(const ndn::PacketBase& netPkt, lp::Packet& lp
   else {
     lpPacket.add<lp::HopCountTagField>(0);
   }
+
+  ////////////////////////////////
+  // Jiangtao Luo. 31 Mar 2020
+  shared_ptr<lp::CchTag> cchTag = netPkt.getTag<lp::CchTag>();
+  if (cchTag != nullptr) {
+    lpPacket.add<lp::CchTagField>(*cchTag);
+    //NFD_LOG_DEBUG("CchTag in generic-link-service in encodeLpFields: " << *cchTag);
+  }
+  else {
+    //NFD_LOG_DEBUG("CchTag in generic-link-service in encodeLpFields: lost!!!");
+    lpPacket.add<lp::CchTagField>(1);
+  }
+  ////////////////////////////////
 }
 
 void
@@ -210,7 +250,18 @@ GenericLinkService::sendNetPacket(lp::Packet&& pkt, bool isInterest)
   }
 
   for (lp::Packet& frag : frags) {
-    this->sendLpPacket(std::move(frag));
+    ////////////////////////////////
+    // Jiangtao Luo. 2 April 2020
+     if(isInterest && m_isInterestOnCch) {
+       NFD_LOG_DEBUG("Interest && onCCH, redirected to X ..."); // Jiangtao Luo. 1 April 2020
+       this->sendLpPacketX(std::move(frag));
+     }
+     else {
+        this->sendLpPacket(std::move(frag));
+     }
+   ////////////////////////////////
+     // Commented by Jiangtao Luo. replaced by above
+     //this->sendLpPacket(std::move(frag));
   }
 }
 
@@ -396,6 +447,13 @@ GenericLinkService::decodeInterest(const Block& netPkt, const lp::Packet& firstP
     return;
   }
 
+  ////////////////////////////////
+  // Jiangtao Luo. 1 April 2020
+  if(firstPkt.has<lp::CchTagField>()){
+     interest->setTag(make_shared<lp::CchTag>(firstPkt.get<lp::CchTagField>()));
+   }
+  ////////////////////////////////
+  
   this->receiveInterest(*interest);
 }
 

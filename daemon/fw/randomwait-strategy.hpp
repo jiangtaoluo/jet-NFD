@@ -79,10 +79,13 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   static const time::milliseconds RETX_SUPPRESSION_INITIAL;
   static const time::milliseconds RETX_SUPPRESSION_MAX;
 
-  static const time::microseconds DELAY_MAX; // maximum delay in us
-  static const time::microseconds DELAY_MIN; // minimum delay in us
+  static const time::microseconds DELAY_MAX_INTEREST; // maximum delay for Interest
+  static const time::microseconds DELAY_MIN_INTEREST; // minimum delay for Interest
 
   static const time::milliseconds RETX_TIMER_UNIT; // each extra delay per retx
+
+  static const time::microseconds DELAY_MAX_DATA; // maximum dealy for Data
+  static const time::microseconds DELAY_MIN_DATA; // minimum delay for Data
 
   //EventId m_sendInterest; // EventId of sending Interest
 };

@@ -280,6 +280,14 @@ private: // receive path
   void
   decodeNack(const Block& netPkt, const lp::Packet& firstPkt);
 
+  ////////////////////////////////
+  // Jiangtao Luo. 2 April 2020
+  // For interest
+public:
+  void
+  sendLpPacketX(lp::Packet&& pkt);
+  ////////////////////////////////
+
 PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   Options m_options;
   LpFragmenter m_fragmenter;

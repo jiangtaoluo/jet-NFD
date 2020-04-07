@@ -202,6 +202,12 @@ public: // upper interface
   void
   send(Packet&& packet);
 
+  ////////////////////////////////
+  // For Interest. Jiangtao Luo. 2 April 2020
+  void
+  sendX(Packet&& packet);
+  ////////////////////////////////
+
 public: // static properties
   /** \return a FaceUri representing local endpoint
    */
@@ -365,6 +371,12 @@ private: // to be overridden by subclass
    */
   virtual void
   doSend(Packet&& packet) = 0;
+
+  ////////////////////////////////
+  // For Interest. Jiangtao Luo. 2 April 2020
+  virtual void
+  doSendX(Packet&& packet);
+  ////////////////////////////////
 
 public:
   /** \brief minimum MTU that may be set on a transport

@@ -332,6 +332,11 @@ public: // For randomWait test
   void
   //setRelayTimerForData(time::microseconds delay, Face& outFace, const Data& data);
   setRelayTimerForData(time::microseconds delay, FaceId outFaceId, const Data& data);
+
+  // process unsolicited data for wandom-wait
+  // Jiangtao Luo. 29 Mar 2020
+  void
+  onRandomWaitDataUnsolicited(Face& inFace, const Data& data);
 ////////////////////////////////
 
 private:

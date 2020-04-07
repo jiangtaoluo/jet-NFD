@@ -186,6 +186,12 @@ protected: // lower interface to be invoked in subclass (send path termination)
   void
   sendPacket(Transport::Packet&& packet);
 
+  ////////////////////////////////
+  // For interest. Jiangtao Luo. 2 April 2020
+  void
+  sendPacketX(Transport::Packet&& packet);
+  ////////////////////////////////
+  
 protected:
   void
   notifyDroppedInterest(const Interest& packet);
@@ -213,7 +219,45 @@ private: // lower interface to be overridden in subclass
 private:
   Face* m_face;
   Transport* m_transport;
+
+////////////////////////////////
+// Jiangtao Luo. 2 April 2020
+public:
+    ////////////////////////////////
+  // Jiangtao Luo. 2 April 2020
+  void
+  setInterestOnCch();
+
+  void clearInterestOnCch();
+
+  bool isInterestOnCch() const;
+  
+  ////////////////////////////////
+protected:
+  bool m_isInterestOnCch;
+////////////////////////////////
 };
+
+////////////////////////////////
+// Jiangtao Luo. 2 April 2020
+inline void
+LinkService::setInterestOnCch()
+{
+  m_isInterestOnCch = true;
+}
+
+inline void
+LinkService::clearInterestOnCch()
+{
+  m_isInterestOnCch = false;
+}
+
+inline bool
+LinkService::isInterestOnCch() const
+{
+  return m_isInterestOnCch;
+}
+////////////////////////////////
 
 inline const Face*
 LinkService::getFace() const
@@ -250,6 +294,15 @@ LinkService::sendPacket(Transport::Packet&& packet)
 {
   m_transport->send(std::move(packet));
 }
+
+////////////////////////////////
+// Jiangtao Luo. 2 April 2020
+inline void
+LinkService::sendPacketX(Transport::Packet&& packet)
+{
+  m_transport->sendX(std::move(packet));
+}
+////////////////////////////////
 
 std::ostream&
 operator<<(std::ostream& os, const FaceLogHelper<LinkService>& flh);
